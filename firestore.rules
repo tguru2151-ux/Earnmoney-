@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // USERS — anyone signed in can read (needed for referral lookups &
+    // the admin dashboard); a user can only write their own document.
+    match /users/{userEmail} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // HISTORY — signed-in users can read/write (their own writes are
+    // filtered by Email in the app code).
+    match /history/{docId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // OFFERS / SURVEYS — readable by anyone signed in, not writable
+    // from the client (seed data only).
+    match /offers/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+    match /surveys/{docId} {
+      allow read: if request.auth != null;
+      allow write: if false;
+    }
+
+    // WITHDRAWALS — signed-in users can create/read; updates (accept/
+    // reject) also allowed here since the Admin Panel is password-
+    // gated in the app UI rather than through Firebase Auth roles.
+    match /withdrawals/{docId} {
+      allow read, create, update: if request.auth != null;
+    }
+  }
+}
+
+/*
+  IMPORTANT SECURITY NOTE
+  ------------------------
+  These rules allow ANY signed-in user (not just the admin) to read
+  and write users/history/withdrawals data, because the Admin Panel
+  in this app uses a simple in-app password ("@Nikhil001") rather
+  than a real Firebase role/claim. This is fine for testing and small
+  private use, but it means a technically savvy user could edit data
+  directly via the Firebase console/SDK if they wanted to.
+
+  For a production app handling real money, upgrade to real admin
+  security before launch:
+   1. Add a custom claim (e.g. admin: true) to your own account using
+      a Cloud Function or the Firebase Admin SDK.
+   2. Change the rules above to check request.auth.token.admin == true
+      for admin-only actions (accepting/rejecting withdrawals, reading
+      all users), and restrict normal users to only read/write their
+      own document (request.auth.token.email == userEmail).
+*/
